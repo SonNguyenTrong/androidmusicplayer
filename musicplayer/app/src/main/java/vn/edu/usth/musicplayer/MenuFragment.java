@@ -1,13 +1,20 @@
 package vn.edu.usth.musicplayer;
 
+import android.app.DownloadManager;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -19,26 +26,44 @@ import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 
+import com.android.volley.AuthFailureError;
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.snackbar.Snackbar;
 import com.mancj.materialsearchbar.MaterialSearchBar;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import vn.edu.usth.musicplayer.searchBar.Controller;
 import vn.edu.usth.musicplayer.searchBar.IconToSimpleLine;
 import vn.edu.usth.musicplayer.searchBar.JSearchView;
 
 
-import java.util.List;
-
-
-public class MenuFragment extends Fragment implements MaterialSearchBar.OnSearchActionListener {
+public class MenuFragment extends Fragment {
     View view;
     private List<String> lastSearches;
-    private MaterialSearchBar searchBar;
-    private EditText editText;
-    private  JSearchView searchView;
-    private  JSearchView mSearchview;
+    private SearchView search;
+    private JSearchView searchView;
+    private FragmentTransaction ft;
+    private RequestQueue requestQueue;
+
+
+    String[] list = {
+            "Harry",
+            "John",
+            "larry", "Malfoy", "nape"
+    };
 
     public MenuFragment() {
         //empty constructor
@@ -76,7 +101,7 @@ public class MenuFragment extends Fragment implements MaterialSearchBar.OnSearch
             @Override
             public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
                 int id = menuItem.getItemId();
-                FragmentTransaction ft = getActivity().getSupportFragmentManager().beginTransaction();
+                ft = getActivity().getSupportFragmentManager().beginTransaction();
 
 
                 if (id == R.id.nav_favorite) {
@@ -104,76 +129,94 @@ public class MenuFragment extends Fragment implements MaterialSearchBar.OnSearch
 
         searchView = view.findViewById(R.id.searchBar);
         searchView.setController(new IconToSimpleLine());
-        editText = view.findViewById(R.id.edit_text);
+        search = view.findViewById(R.id.edit_text);
         final IconToSimpleLine sv1 = new IconToSimpleLine();
+
+        //Search Bar
+        ListView listView = (ListView) view.findViewById(R.id.suggest_list);
+        ArrayAdapter search_adapter = new ArrayAdapter(getContext(), android.R.layout.simple_list_item_1, list);
+        listView.setAdapter(search_adapter);
         searchView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (sv1.getState() == Controller.STATE_ANIM_NONE) {
                     searchView.startAnim();
-                    editText.setVisibility(View.VISIBLE);
-                    editText.bringToFront();
-                } else if (sv1.getState() == Controller.STATE_ANIM_START) {
-                    Toast.makeText(getContext(), "正在搜索", Toast.LENGTH_LONG).show();
+                    search.setVisibility(View.VISIBLE);
+                    search.bringToFront();
+                    search.setIconifiedByDefault(false);
+                    ImageView searchIcon = search.findViewById(androidx.appcompat.R.id.search_mag_icon);
+                    searchIcon.setImageDrawable(null);
+                    search.setOnCloseListener(new SearchView.OnCloseListener() {
+                        @Override
+                        public boolean onClose() {
+                            searchView.resetAnim();
+                            search.setVisibility(View.INVISIBLE);
+                            return false;
+                        }
+                    });
+                    //                    ft.replace(R.id.content_frag,new SearchFragment())
+                    //                    ft.addToBackStack(null);
+                } else if (sv1.getState() == Controller.STATE_ANIM_STOP) {
+                    search.setVisibility(View.INVISIBLE);
+                    searchView.resetAnim();
                 }
 
             }
 
         });
+        search.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+
+                return false;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                jsonParse(newText);
+                return false;
+            }
+        });
 
         return view;
     }
 
+    private void jsonParse(String key_search) {
+        String baseURL = "https://api.napster.com/v2.2/search/verbose?query=";
+        Log.i("music",key_search);
+        String url = baseURL + key_search +"&type=track&per_type_limit=5";
+        Log.i("music",url);
+        JsonObjectRequest request =
+                new JsonObjectRequest(Request.Method.GET, url, null,
+                        new Response.Listener<JSONObject>() {
+                            @Override
+                            public void onResponse(JSONObject response) {
+                                try {
+                                    Log.i("music", "response" + response);
+                                    JSONObject obj = response.getJSONObject("search");
+//                                    String desc = obj.getString("summary");
+//                                    String temp = obj.getString("temperature") + "F";
 
-
-
-
-    @Override
-    public void onSearchStateChanged(boolean enabled) {
-//        String state = b ? "enabled" : "disabled";
-//        Toast.makeText(MainActivity.this, "Search " + state, Toast.LENGTH_SHORT).show();
-
+                                } catch (JSONException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }, new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        error.printStackTrace();
+                    }
+                }) {
+                    @Override
+                    public Map<String,String> getHeaders() throws AuthFailureError {
+                        HashMap<String,String> headers = new HashMap<String,String>();
+                        headers.put("apikey", "YjkxYzdlZGEtNzllMy00OGE4LTg4M2EtMGEzZTU4ODZlOGQ2");
+                        return headers;
+                    }
+                };
+        requestQueue = Volley.newRequestQueue(getActivity().getApplicationContext());
+        requestQueue.add(request);
     }
 
-    @Override
-    public void onSearchConfirmed(CharSequence text) {
-//        Toast.makeText(this,"Searching "+ charSequence.toString()+" ......",Toast.LENGTH_SHORT).show();
 
-    }
-
-    @Override
-    public void onButtonClicked(int buttonCode) {
-//        switch (i){
-//            case MaterialSearchBar.BUTTON_NAVIGATION:
-//                Toast.makeText(MainActivity.this, "Button Nav " , Toast.LENGTH_SHORT).show();
-//                break;
-//            case MaterialSearchBar.BUTTON_SPEECH:
-//                Toast.makeText(MainActivity.this, "Speech " , Toast.LENGTH_SHORT).show();
-//        }
-
-    }
 }
-//
-//    public boolean onNavigationItemSelected(MenuItem item) {
-//        // Handle navigation view item clicks here.
-//        int id = item.getItemId();
-//
-//
-//        switch (id) {
-//            case R.id.nav_favorite :
-//
-//
-//            case R.id.nav_home :
-//                ft.replace(R.id.content_frag,new FavoriteFragment());
-//                ft.addToBackStack(null);
-//
-//        }
-//        ft.commit();
-//        DrawerLayout drawer = (DrawerLayout) view.findViewById(R.id.drawer_layout);
-//        drawer.closeDrawer(GravityCompat.START);
-//        return true;
-//
-//
-//        }
-//
-//    }
