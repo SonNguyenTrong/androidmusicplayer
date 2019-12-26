@@ -1,9 +1,16 @@
 package vn.edu.usth.musicplayer;
 
 import android.app.DownloadManager;
+import android.app.SearchManager;
+import android.app.SearchableInfo;
+import android.content.ComponentName;
+import android.content.Context;
+import android.database.MatrixCursor;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.media.Image;
 import android.os.Bundle;
+import android.provider.BaseColumns;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -11,10 +18,14 @@ import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.SimpleCursorAdapter;
+import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -22,6 +33,7 @@ import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
 import androidx.appcompat.widget.Toolbar;
+import androidx.cursoradapter.widget.CursorAdapter;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
@@ -36,18 +48,26 @@ import com.android.volley.toolbox.Volley;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.snackbar.Snackbar;
-import com.mancj.materialsearchbar.MaterialSearchBar;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.lang.reflect.Array;
+import java.security.PrivateKey;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.function.Consumer;
 
 import vn.edu.usth.musicplayer.searchBar.Controller;
 import vn.edu.usth.musicplayer.searchBar.IconToSimpleLine;
 import vn.edu.usth.musicplayer.searchBar.JSearchView;
+
+import static androidx.core.content.ContextCompat.getSystemService;
 
 
 public class MenuFragment extends Fragment {
@@ -56,20 +76,13 @@ public class MenuFragment extends Fragment {
     private SearchView search;
     private JSearchView searchView;
     private FragmentTransaction ft;
-    private RequestQueue requestQueue;
-
-
-    String[] list = {
-            "Harry",
-            "John",
-            "larry", "Malfoy", "nape"
-    };
+    private SimpleCursorAdapter myAdapter;
+    private RequestQueue  requestQueue;
+    ArrayList<String> listSong = new ArrayList();
 
     public MenuFragment() {
         //empty constructor
-    }
-
-    ;
+    };
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -86,6 +99,7 @@ public class MenuFragment extends Fragment {
                         .setAction("Action", null).show();
             }
         });
+        Log.i("asdasd","msg"+ UUID.randomUUID().toString());
 
         DrawerLayout drawer = view.findViewById(R.id.drawer_layout);
 
@@ -97,20 +111,21 @@ public class MenuFragment extends Fragment {
         toggle.syncState();
 
         NavigationView navigationView = (NavigationView) view.findViewById(R.id.nav_view);
+
+
+
         navigationView.setNavigationItemSelectedListener(new NavigationView.OnNavigationItemSelectedListener() {
             @Override
             public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
-                int id = menuItem.getItemId();
                 ft = getActivity().getSupportFragmentManager().beginTransaction();
+
+                int id = menuItem.getItemId();
 
 
                 if (id == R.id.nav_favorite) {
                     ft.replace(R.id.content_frag, new FavoriteFragment());
-                    ft.addToBackStack(null);
                     Snackbar.make(view, "Favorite", Snackbar.LENGTH_LONG);
                 } else if (id == R.id.nav_home) {
-                    ft.replace(R.id.content_frag, new SongFragment());
-                    ft.addToBackStack(null);
                     Snackbar.make(view, "Gallery", Snackbar.LENGTH_LONG);
                 } else if (id == R.id.nav_slideshow) {
                     Snackbar.make(view, "Slide", Snackbar.LENGTH_LONG);
@@ -121,6 +136,7 @@ public class MenuFragment extends Fragment {
                 } else if (id == R.id.nav_send) {
                     Snackbar.make(view, "Send", Snackbar.LENGTH_LONG);
                 }
+                ft.addToBackStack(null);
                 ft.commit();
                 return true;
             }
@@ -131,11 +147,10 @@ public class MenuFragment extends Fragment {
         searchView.setController(new IconToSimpleLine());
         search = view.findViewById(R.id.edit_text);
         final IconToSimpleLine sv1 = new IconToSimpleLine();
+        jsonParse();
 
         //Search Bar
-        ListView listView = (ListView) view.findViewById(R.id.suggest_list);
-        ArrayAdapter search_adapter = new ArrayAdapter(getContext(), android.R.layout.simple_list_item_1, list);
-        listView.setAdapter(search_adapter);
+
         searchView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -143,9 +158,7 @@ public class MenuFragment extends Fragment {
                     searchView.startAnim();
                     search.setVisibility(View.VISIBLE);
                     search.bringToFront();
-                    search.setIconifiedByDefault(false);
-                    ImageView searchIcon = search.findViewById(androidx.appcompat.R.id.search_mag_icon);
-                    searchIcon.setImageDrawable(null);
+                    search.setIconifiedByDefault(true);
                     search.setOnCloseListener(new SearchView.OnCloseListener() {
                         @Override
                         public boolean onClose() {
@@ -167,13 +180,13 @@ public class MenuFragment extends Fragment {
         search.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) {
-
+                jsonParse(query);
                 return false;
             }
 
             @Override
             public boolean onQueryTextChange(String newText) {
-                jsonParse(newText);
+
                 return false;
             }
         });
@@ -181,22 +194,26 @@ public class MenuFragment extends Fragment {
         return view;
     }
 
-    private void jsonParse(String key_search) {
+    private void jsonParse(String key_search){
         String baseURL = "https://api.napster.com/v2.2/search/verbose?query=";
-        Log.i("music",key_search);
-        String url = baseURL + key_search +"&type=track&per_type_limit=5";
-        Log.i("music",url);
+        Log.i("data", key_search);
+        String url = baseURL + key_search + "&type=track&per_type_limit=10";
+        Log.i("data", url);
         JsonObjectRequest request =
                 new JsonObjectRequest(Request.Method.GET, url, null,
                         new Response.Listener<JSONObject>() {
                             @Override
                             public void onResponse(JSONObject response) {
                                 try {
-                                    Log.i("music", "response" + response);
+                                    ft = getActivity().getSupportFragmentManager().beginTransaction();
+                                    Log.i("data", "response" + response);
                                     JSONObject obj = response.getJSONObject("search");
-//                                    String desc = obj.getString("summary");
-//                                    String temp = obj.getString("temperature") + "F";
+                                    JSONObject data = obj.getJSONObject("data");
+                                    JSONArray track = data.getJSONArray("tracks");
+                                    ft.replace(R.id.content_frag, new SongFragment(track));
+                                    ft.addToBackStack(null);
 
+                                    ft.commit();
                                 } catch (JSONException e) {
                                     e.printStackTrace();
                                 }
@@ -208,14 +225,53 @@ public class MenuFragment extends Fragment {
                     }
                 }) {
                     @Override
-                    public Map<String,String> getHeaders() throws AuthFailureError {
-                        HashMap<String,String> headers = new HashMap<String,String>();
+                    public Map<String, String> getHeaders() throws AuthFailureError {
+                        HashMap<String, String> headers = new HashMap<String, String>();
                         headers.put("apikey", "YjkxYzdlZGEtNzllMy00OGE4LTg4M2EtMGEzZTU4ODZlOGQ2");
                         return headers;
                     }
                 };
         requestQueue = Volley.newRequestQueue(getActivity().getApplicationContext());
         requestQueue.add(request);
+
+
+    }
+    private void jsonParse(){
+        String baseURL = "https://api.napster.com/v2.2/tracks/top?limit=10";
+        JsonObjectRequest request =
+                new JsonObjectRequest(Request.Method.GET, baseURL, null,
+                        new Response.Listener<JSONObject>() {
+                            @Override
+                            public void onResponse(JSONObject response) {
+                                try {
+                                    ft = getActivity().getSupportFragmentManager().beginTransaction();
+                                    Log.i("data", "response" + response);
+                                    JSONArray track = response.getJSONArray("tracks");
+                                    ft.replace(R.id.content_frag, new SongFragment(track));
+                                    ft.addToBackStack(null);
+
+                                    ft.commit();
+                                } catch (JSONException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }, new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        error.printStackTrace();
+                    }
+                }) {
+                    @Override
+                    public Map<String, String> getHeaders() throws AuthFailureError {
+                        HashMap<String, String> headers = new HashMap<String, String>();
+                        headers.put("apikey", "YjkxYzdlZGEtNzllMy00OGE4LTg4M2EtMGEzZTU4ODZlOGQ2");
+                        return headers;
+                    }
+                };
+        requestQueue = Volley.newRequestQueue(getActivity().getApplicationContext());
+        requestQueue.add(request);
+
+
     }
 
 

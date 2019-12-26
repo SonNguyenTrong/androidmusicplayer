@@ -2,11 +2,13 @@ package vn.edu.usth.musicplayer;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
+import android.app.Activity;
 import android.content.res.AssetFileDescriptor;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,11 +21,17 @@ import androidx.fragment.app.Fragment;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 import com.mikhaellopez.circularimageview.CircularImageView;
+import com.napster.cedar.Napster;
+import com.napster.cedar.player.Player;
+import com.napster.cedar.player.data.Track;
+import android.net.Uri;
+
+import java.io.IOException;
+import java.util.HashMap;
 
 public class MusicPlayerFragment extends Fragment {
-    public MusicPlayerFragment() {
-        //empty constructor
-    };
+    public Uri url = null;
+
     private View parent_view;
     private AppCompatSeekBar seek_song_progressbar;
 
@@ -37,11 +45,15 @@ public class MusicPlayerFragment extends Fragment {
 
     private MusicUtils utils;
 
+    public MusicPlayerFragment(Uri a) {
+        url = a;
+        Log.i("12345","1233"+url);
+    };
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-
+        Log.i("1234","urlurl"+this.url);
         View view = inflater.inflate(R.layout.music_player, container, false);
         parent_view = view.findViewById(R.id.parent_view);
         seek_song_progressbar = view.findViewById(R.id.seek_song_progressbar);
@@ -53,6 +65,9 @@ public class MusicPlayerFragment extends Fragment {
         tv_song_total_duration = view.findViewById(R.id.total_duration);
         image =  view.findViewById(R.id.image);
 
+        Log.i("1234","gg" +url);
+
+
         mp = new MediaPlayer();
         mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
@@ -60,16 +75,30 @@ public class MusicPlayerFragment extends Fragment {
                 btn_play.setImageResource(R.drawable.ic_play_arrow);
             }
         });
+        url = ((MainActivity)getActivity()).getUrl();
 
-        try {
+        if (url == null) {
+            try {
+                mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
+//                AssetFileDescriptor afd = getActivity().getAssets().openFd("999DoaHong.mp3");
+//                mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+//                afd.close();
+
+                mp.setDataSource(getContext(),Uri.parse("https://listen.hs.llnwd.net/g3/2/6/7/2/4/1516242762.mp3"));
+                mp.prepare();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        } else {
             mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
-            AssetFileDescriptor afd = getActivity().getAssets().openFd("999DoaHong.mp3");
-            mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
-            afd.close();
-            mp.prepare();
-        } catch (Exception e) {
-            Snackbar.make(parent_view, "Cannot load audio file", Snackbar.LENGTH_SHORT).show();
+            try {
+                mp.setDataSource(getContext(),url);
+                mp.prepare();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
+
 
         utils = new MusicUtils();
         seek_song_progressbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -151,6 +180,12 @@ public class MusicPlayerFragment extends Fragment {
         super.onDestroy();
         mHandler.removeCallbacks(mUpdateTimeTask);
         mp.release();
+    }
+
+    public void setUrl(Uri a){
+
+        url = a;
+
     }
 
 

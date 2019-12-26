@@ -5,7 +5,9 @@ import androidx.fragment.app.FragmentManager;
 import androidx.viewpager.widget.ViewPager;
 
 import android.graphics.PorterDuff;
+import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageButton;
@@ -14,12 +16,16 @@ import android.widget.ImageButton;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.Volley;
 import com.google.android.material.snackbar.Snackbar;
+import com.napster.cedar.player.data.Track;
+
+import java.net.URL;
 
 public class MainActivity extends AppCompatActivity {
 
 
     private ViewPager pager;
     private Adapter adapter;
+    public Uri url=null;
 
     private View parent_view;
 
@@ -34,7 +40,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void addPagerControl() {
         pager = (ViewPager) findViewById(R.id.view_pager);
-        adapter = new Adapter(getSupportFragmentManager());
+        adapter = new Adapter(getSupportFragmentManager(),null);
         pager.setAdapter(adapter);
     }
 
@@ -73,6 +79,18 @@ public class MainActivity extends AppCompatActivity {
             bt.setColorFilter(getResources().getColor(R.color.colorYellow), PorterDuff.Mode.SRC_ATOP);
             return true;
         }
+    }
+
+    public void songToggle(Uri a){
+        url = a;
+        MusicPlayerFragment obj = new MusicPlayerFragment(url);
+        pager.setAdapter(adapter);
+
+
+    }
+
+    public Uri getUrl() {
+        return url;
     }
 
 }
